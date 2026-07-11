@@ -11,8 +11,11 @@ jobs:
   validate-infra:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repo central
         uses: actions/checkout@v4
+        with:
+          repository: sebastian1219/repo-principal
+          path: repo-principal
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -21,9 +24,11 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+        working-directory: repo-principal/terraform
 
       - name: Terraform Validate
         run: terraform validate
+        working-directory: repo-principal/terraform
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
@@ -32,11 +37,12 @@ jobs:
         run: |
           tflint --init
           tflint --recursive
+        working-directory: repo-principal/terraform
 
       - name: Checkov Security Scan
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: .
+          directory: repo-principal/terraform
           download_external_modules: true
           soft_fail: false   # 🚨 ahora falla si hay problemas
 
@@ -44,7 +50,7 @@ jobs:
     needs: validate-infra
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repo robusto
         uses: actions/checkout@v4
 
       - name: Configure kubectl
@@ -72,3 +78,4 @@ jobs:
           echo "⚠️ Error detectado, revirtiendo a versión estable..."
           kubectl apply -f manifiestos/service-blue.yaml
           kubectl rollout undo deployment/orders-green
+
