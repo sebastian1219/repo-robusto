@@ -1,0 +1,74 @@
+name: Terraform Robusto CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  validate-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Run TFLint
+        run: |
+          tflint --init
+          tflint --recursive
+
+      - name: Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          download_external_modules: true
+          soft_fail: false   # 🚨 ahora falla si hay problemas
+
+  deploy-blue-green:
+    needs: validate-infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+      - name: Deploy Green version
+        run: kubectl apply -f manifiestos/deployment-green.yaml
+
+      - name: Health Check Green
+        run: |
+          kubectl rollout status deployment/orders-green --timeout=60s
+          curl -f http://orders-green.$DOMAIN/health || exit 1
+
+      - name: Switch Traffic to Green
+        run: kubectl apply -f manifiestos/service-green.yaml
+
+  rollback:
+    needs: deploy-blue-green
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rollback to Blue
+        run: |
+          echo "⚠️ Error detectado, revirtiendo a versión estable..."
+          kubectl apply -f manifiestos/service-blue.yaml
+          kubectl rollout undo deployment/orders-green
