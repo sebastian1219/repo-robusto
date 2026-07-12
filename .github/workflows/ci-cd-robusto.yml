@@ -1,83 +1,64 @@
-name: Terraform Robusto CI/CD
+name: CI/CD Robusto
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
 
 jobs:
-  validate-infra:
+  run-precario:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo central (precario)
+      - name: Checkout repo central
         uses: actions/checkout@v4
         with:
           repository: sebastian1219/repo-principal
           path: repo-principal
           fetch-depth: 0
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
+      - name: Mostrar workflow precario
+        run: cat repo-principal/.github/workflows/terraform-precario.yml
 
-      - name: Terraform Init
-        run: terraform init
-        working-directory: repo-principal
+  validate-and-deploy:
+    needs: run-precario
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo robusto
+        uses: actions/checkout@v4
 
-      - name: Terraform Validate
-        run: terraform validate
-        working-directory: repo-principal
+      - name: Validaciones Terraform
+        run: |
+          terraform init
+          terraform validate
 
-      - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v4
-
-      - name: Run TFLint
+      - name: TFLint
         run: |
           tflint --init
           tflint --recursive
-        working-directory: repo-principal
 
-      - name: Checkov Security Scan
+      - name: Checkov
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: repo-principal
-          download_external_modules: true
+          directory: .
           soft_fail: false
 
-  deploy-blue-green:
-    needs: validate-infra
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo robusto (manifiestos)
-        uses: actions/checkout@v4
-
-      - name: Configure kubectl
-        run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-
-      - name: Deploy Green version
+      - name: Deploy Green
         run: kubectl apply -f manifiestos/deployment-green.yaml
 
-      - name: Health Check Green
+      - name: Health Check
         run: |
           kubectl rollout status deployment/orders-green --timeout=60s
           curl -f http://orders-green.$DOMAIN/health || exit 1
 
-      - name: Switch Traffic to Green
+      - name: Switch Traffic
         run: kubectl apply -f manifiestos/service-green.yaml
 
   rollback:
-    needs: deploy-blue-green
+    needs: validate-and-deploy
     if: failure()
     runs-on: ubuntu-latest
     steps:
-      - name: Rollback to Blue
+      - name: Rollback
         run: |
-          echo "⚠️ Error detectado, revirtiendo a versión estable..."
           kubectl apply -f manifiestos/service-blue.yaml
           kubectl rollout undo deployment/orders-green
-
-
