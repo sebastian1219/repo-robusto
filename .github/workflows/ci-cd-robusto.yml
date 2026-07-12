@@ -65,6 +65,7 @@ jobs:
       - name: Run Checkov
         run: checkov -d . --quiet --soft-fail false
 
+
   deploy-blue-green:
     needs: validate-infra
     runs-on: ubuntu-latest
