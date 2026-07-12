@@ -17,6 +17,19 @@ spec:
     spec:
       containers:
       - name: orders
-        image: 637423638685.dkr.ecr.us-east-1.amazonaws.com/ciclo-final:${GITHUB_SHA}
+        image: 637423638685.dkr.ecr.us-east-1.amazonaws.com/ciclo-final:stable
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+
