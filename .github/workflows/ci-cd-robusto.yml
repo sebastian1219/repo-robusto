@@ -65,8 +65,37 @@ jobs:
       - name: Run Checkov
         run: checkov -d . --quiet --soft-fail
 
-  deploy-blue-green:
+  build-and-push-ecr:
     needs: validate-infra
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPO: ${{ secrets.ECR_REPO }}  
+    steps:
+      - name: Checkout repo robusto
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login en ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin $ECR_REPO
+
+      - name: Build imagen
+        run: docker build -t $ECR_REPO/orders:${GITHUB_SHA} .
+
+      - name: Push imagen
+        run: docker push $ECR_REPO/orders:${GITHUB_SHA}
+
+  deploy-blue-green:
+    needs: build-and-push-ecr
     runs-on: ubuntu-latest
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -83,47 +112,17 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      build-and-push-ecr:
-  needs: validate-infra
-  runs-on: ubuntu-latest
-  env:
-    AWS_REGION: ${{ secrets.AWS_REGION }}
-    ECR_REPO: ${{ secrets.ECR_REPO }}   # nombre del repo en ECR
-  steps:
-    - name: Checkout repo robusto
-      uses: actions/checkout@v4
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
 
-    - name: Configurar credenciales AWS
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      - name: Deploy Green version
+        run: kubectl apply -f manifiestos/deployment-green.yaml
 
-    - name: Login en ECR
-      run: |
-        aws ecr get-login-password --region $AWS_REGION | \
-        docker login --username AWS --password-stdin $ECR_REPO
+      - name: Health Check Green
+        run: kubectl rollout status deployment/orders-green --timeout=200s
 
-    - name: Build imagen
-      run: docker build -t $ECR_REPO/orders:${GITHUB_SHA} .
-
-    - name: Push imagen
-      run: docker push $ECR_REPO/orders:${GITHUB_SHA}
-
-
-    - name: Configurar kubectl
-      run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-
-    - name: Deploy Green version
-      run: kubectl apply -f manifiestos/deployment-green.yaml
-
-    - name: Health Check Green
-      run: kubectl rollout status deployment/orders-green --timeout=200s
-
-    - name: Switch Traffic to Green
-      run: kubectl apply -f manifiestos/service-green.yaml
+      - name: Switch Traffic to Green
+        run: kubectl apply -f manifiestos/service-green.yaml
 
   rollback:
     needs: deploy-blue-green
