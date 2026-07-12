@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECR_REPO: ${{ secrets.ECR_REPO }}  
+      ECR_REPO_RAW: ${{ secrets.ECR_REPO }}  
     steps:
       - name: Checkout repo robusto
         uses: actions/checkout@v4
@@ -83,6 +83,11 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Normalizar ECR en minúsculas
+        run: |
+          LOWCASE_REPO=$(echo "$ECR_REPO_RAW" | tr '[:upper:]' '[:lower:]')
+          echo "ECR_REPO=$LOWCASE_REPO" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
    
@@ -91,9 +96,14 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | \
           docker login --username AWS --password-stdin $ECR_REPO
 
+      # Corrección aquí: Cambiado '--push ./manifiesto' por '--push ./manifiestos'
       - name: Build & Push imagen
-        run: docker buildx build --platform linux/amd64 -t $ECR_REPO:${GITHUB_SHA} -t $ECR_REPO:stable -f ./manifiestos/Dockerfile --push ./manifiesto
-
+        run: |
+          docker buildx build --platform linux/amd64 \
+            -t $ECR_REPO:${GITHUB_SHA} \
+            -t $ECR_REPO:stable \
+            -f ./manifiestos/Dockerfile ./manifiestos \
+            --push
 
   deploy-blue-green:
     needs: build-and-push-ecr
@@ -101,8 +111,55 @@ jobs:
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+      ECR_REPO_RAW: ${{ secrets.ECR_REPO }}
     steps:
       - name: Checkout repo robusto (manifiestos)
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Normalizar ECR en minúsculas
+        run: |
+          LOWCASE_REPO=$(echo "$ECR_REPO_RAW" | tr '[:upper:]' '[:lower:]')
+          echo "ECR_REPO=$LOWCASE_REPO" >> $GITHUB_ENV
+
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+      # Inyección del Token de ECR en Kubernetes para evitar el ErrImagePull de Learner Lab
+      - name: Crear secreto de autenticación para ECR
+        run: |
+          TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
+          kubectl delete secret ecr-registry-helper --ignore-not-found
+          kubectl create secret docker-registry ecr-registry-helper \
+            --docker-server=$ECR_REPO \
+            --docker-username=AWS \
+            --docker-password=$TOKEN
+
+      - name: Deploy Green version
+        run: kubectl apply -f manifiestos/deployment-green.yaml
+
+      - name: Health Check Green
+        run: kubectl rollout status deployment/orders-green --timeout=200s
+
+      - name: Switch Traffic to Green
+        run: kubectl apply -f manifiestos/service-green.yaml
+
+  rollback:
+    needs: deploy-blue-green
+    if: failure()
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+    steps:
+      - name: Checkout repo robusto
         uses: actions/checkout@v4
 
       - name: Configurar credenciales AWS
@@ -116,42 +173,10 @@ jobs:
       - name: Configurar kubectl
         run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
 
-      - name: Deploy Green version
-        run: kubectl apply -f manifiestos/deployment-green.yaml
-
-      - name: Health Check Green
-        run: kubectl rollout status deployment/orders-green --timeout=200s
-
-      - name: Switch Traffic to Green
-        run: kubectl apply -f manifiestos/service-green.yaml
-
-  rollback:
-   needs: deploy-blue-green
-   if: failure()
-   runs-on: ubuntu-latest
-   env:
-     AWS_REGION: ${{ secrets.AWS_REGION }}
-     CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
-   steps:
-     - name: Checkout repo robusto
-       uses: actions/checkout@v4
-
-     - name: Configurar credenciales AWS
-       uses: aws-actions/configure-aws-credentials@v4
-       with:
-         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-         aws-region: ${{ secrets.AWS_REGION }}
-
-     - name: Configurar kubectl
-       run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-
-     - name: Rollback to Blue
-       run: |
-         echo "⚠️ Error detectado, revirtiendo a versión estable..."
-         kubectl apply -f ./manifiestos/service-blue.yaml --validate=false
-         kubectl apply -f ./manifiestos/deployment-blue.yaml --validate=false
-         kubectl get pods -l app=orders,version=blue -o wide
-         kubectl rollout status deployment/orders-blue --timeout=300s
-           (echo "❌ Blue no levantó correctamente" && exit 1)
+      - name: Rollback to Blue
+        run: |
+          echo "⚠️ Error detectado, revirtiendo a versión estable..."
+          kubectl apply -f ./manifiestos/service-blue.yaml --validate=false
+          kubectl apply -f ./manifiestos/deployment-blue.yaml --validate=false
+          kubectl get pods -l app=orders,version=blue -o wide
+          kubectl rollout status deployment/orders-blue --timeout=300s || (echo "❌ Blue no levantó correctamente" && exit 1)
