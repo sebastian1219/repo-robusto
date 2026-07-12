@@ -16,5 +16,7 @@ spec:
     spec:
       containers:
       - name: orders
-        image: <ECR_REPO>/orders:${GITHUB_SHA}
+        image: 637423638685.dkr.ecr.us-east-1.amazonaws.com/ciclo-final:${GITHUB_SHA}
+        ports:
+      - containerPort: 8080
 
