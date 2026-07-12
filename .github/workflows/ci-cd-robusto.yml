@@ -24,11 +24,11 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: repo-principal/terraform
+        working-directory: repo-principal
 
       - name: Terraform Validate
         run: terraform validate
-        working-directory: repo-principal/terraform
+        working-directory: repo-principal
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
@@ -37,7 +37,7 @@ jobs:
         run: |
           tflint --init
           tflint --recursive
-        working-directory: repo-principal/terraform
+        working-directory: repo-principal
 
       - name: Checkov Security Scan
         uses: bridgecrewio/checkov-action@master
