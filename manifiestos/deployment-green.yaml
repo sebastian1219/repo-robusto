@@ -17,6 +17,7 @@ spec:
         app: orders
         version: green
     spec:
+      revisionHistoryLimit: 10
       containers:
       - name: orders
         image: 637423638685.dkr.ecr.us-east-1.amazonaws.com/ciclo-final:${GITHUB_SHA}
