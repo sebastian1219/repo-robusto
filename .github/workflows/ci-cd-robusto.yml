@@ -1,64 +1,90 @@
-name: CI/CD Robusto
+name: Terraform Robusto CI/CD
 
 on:
-  workflow_dispatch:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  run-precario:
+  validate-infra:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo central
+      - name: Checkout repo central (precario)
         uses: actions/checkout@v4
         with:
           repository: sebastian1219/repo-principal
           path: repo-principal
           fetch-depth: 0
 
-      - name: Mostrar workflow precario
-        run: cat repo-principal/.github/workflows/terraform-precario.yml
-
-  validate-and-deploy:
-    needs: run-precario
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo robusto
-        uses: actions/checkout@v4
-
-      - name: Validaciones Terraform
+      - name: Instalar Terraform
         run: |
-          terraform init
-          terraform validate
+          sudo apt-get update -y
+          sudo apt-get install -y wget unzip
+          wget https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_linux_amd64.zip
+          unzip terraform_1.5.0_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+          terraform -version
 
-      - name: TFLint
+      - name: Instalar TFLint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+          tflint --version
+
+      - name: Instalar Checkov
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install checkov
+          checkov --version
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: repo-principal
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: repo-principal
+
+      - name: Run TFLint
         run: |
           tflint --init
           tflint --recursive
+        working-directory: repo-principal
 
-      - name: Checkov
-        uses: bridgecrewio/checkov-action@master
-        with:
-          directory: .
-          soft_fail: false
+      - name: Run Checkov
+        run: checkov -d repo-principal --quiet --soft-fail false
 
-      - name: Deploy Green
+  deploy-blue-green:
+    needs: validate-infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo robusto (manifiestos)
+        uses: actions/checkout@v4
+
+      - name: Configurar kubectl
+        run: |
+          aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+      - name: Deploy Green version
         run: kubectl apply -f manifiestos/deployment-green.yaml
 
-      - name: Health Check
+      - name: Health Check Green
         run: |
           kubectl rollout status deployment/orders-green --timeout=60s
           curl -f http://orders-green.$DOMAIN/health || exit 1
 
-      - name: Switch Traffic
+      - name: Switch Traffic to Green
         run: kubectl apply -f manifiestos/service-green.yaml
 
   rollback:
-    needs: validate-and-deploy
+    needs: deploy-blue-green
     if: failure()
     runs-on: ubuntu-latest
     steps:
-      - name: Rollback
+      - name: Rollback to Blue
         run: |
+          echo "⚠️ Error detectado, revirtiendo a versión estable..."
           kubectl apply -f manifiestos/service-blue.yaml
           kubectl rollout undo deployment/orders-green
+
