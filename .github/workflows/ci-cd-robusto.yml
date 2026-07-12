@@ -11,11 +11,12 @@ jobs:
   validate-infra:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo central
+      - name: Checkout repo central (precario)
         uses: actions/checkout@v4
         with:
           repository: sebastian1219/repo-principal
           path: repo-principal
+          fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -42,15 +43,15 @@ jobs:
       - name: Checkov Security Scan
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: repo-principal/terraform
+          directory: repo-principal
           download_external_modules: true
-          soft_fail: false   # 🚨 ahora falla si hay problemas
+          soft_fail: false
 
   deploy-blue-green:
     needs: validate-infra
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo robusto
+      - name: Checkout repo robusto (manifiestos)
         uses: actions/checkout@v4
 
       - name: Configure kubectl
@@ -78,4 +79,5 @@ jobs:
           echo "⚠️ Error detectado, revirtiendo a versión estable..."
           kubectl apply -f manifiestos/service-blue.yaml
           kubectl rollout undo deployment/orders-green
+
 
