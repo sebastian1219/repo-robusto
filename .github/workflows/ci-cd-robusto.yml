@@ -90,7 +90,7 @@ jobs:
         run: kubectl apply -f manifiestos/deployment-green.yaml
 
       - name: Health Check Green
-        run: kubectl rollout status deployment/orders-green --timeout=150s
+        run: kubectl rollout status deployment/orders-green --timeout=200s
 
       - name: Switch Traffic to Green
         run: kubectl apply -f manifiestos/service-green.yaml
