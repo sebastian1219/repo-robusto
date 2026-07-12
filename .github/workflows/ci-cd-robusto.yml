@@ -89,10 +89,10 @@ jobs:
           docker login --username AWS --password-stdin $ECR_REPO
 
       - name: Build imagen
-        run: docker build -t $ECR_REPO/orders:${GITHUB_SHA} -f manifiestos/Dockerfile manifiestos/
+        run: docker build -t $ECR_REPO:${GITHUB_SHA} -f manifiestos/Dockerfile manifiestos/
 
       - name: Push imagen
-        run: docker push $ECR_REPO/orders:${GITHUB_SHA}
+        run: docker push $ECR_REPO:${GITHUB_SHA}
 
   deploy-blue-green:
     needs: build-and-push-ecr
