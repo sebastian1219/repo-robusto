@@ -153,4 +153,6 @@ jobs:
          echo "⚠️ Error detectado, revirtiendo a versión estable..."
          kubectl apply -f ./manifiestos/service-blue.yaml --validate=false
          kubectl apply -f ./manifiestos/deployment-blue.yaml --validate=false
-         kubectl rollout status deployment/orders-blue --timeout=400s
+         kubectl get pods -l app=orders,version=blue -o wide
+         kubectl rollout status deployment/orders-blue --timeout=300s
+           (echo "❌ Blue no levantó correctamente" && exit 1)
