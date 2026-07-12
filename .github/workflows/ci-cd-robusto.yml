@@ -130,13 +130,27 @@ jobs:
    needs: deploy-blue-green
    if: failure()
    runs-on: ubuntu-latest
+   env:
+     AWS_REGION: ${{ secrets.AWS_REGION }}
+     CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
    steps:
      - name: Checkout repo robusto
        uses: actions/checkout@v4
 
+     - name: Configurar credenciales AWS
+       uses: aws-actions/configure-aws-credentials@v4
+       with:
+         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+         aws-region: ${{ secrets.AWS_REGION }}
+
+     - name: Configurar kubectl
+       run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
      - name: Rollback to Blue
        run: |
          echo "⚠️ Error detectado, revirtiendo a versión estable..."
-         kubectl apply -f ./manifiestos/service-blue.yaml
+         kubectl apply -f ./manifiestos/service-blue.yaml --validate=false
          kubectl rollout undo deployment/orders-green
 
