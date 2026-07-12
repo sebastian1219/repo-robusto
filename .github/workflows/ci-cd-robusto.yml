@@ -92,9 +92,8 @@ jobs:
         run: docker buildx build --platform linux/amd64 \
              -t $ECR_REPO:${GITHUB_SHA} \
              -t $ECR_REPO:stable \
-             -f ./manifiestos/Dockerfile \
+             -f ./manifiestos/Dockerfile ./manifiestos \
              --push \
-             ./manifiestos
 
 
   deploy-blue-green:
