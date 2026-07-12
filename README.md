@@ -1,50 +1,39 @@
-**📌 Qué hace este workflow**
+Qué hace este workflow
 
-**Validaciones: corre terraform validate, tflint y checkov.**
+Validaciones: corre terraform validate, tflint y checkov.
 
+Despliegue Blue-Green: crea un deployment-green, valida su salud y luego cambia el tráfico.
 
+Rollback automático: si falla la validación o el despliegue, revierte a la versión estable (blue).
 
-**Despliegue Blue-Green: crea un deployment-green, valida su salud y luego cambia el tráfico.**
-
-
-
-**Rollback automático: si falla la validación o el despliegue, revierte a la versión estable (blue).**
+Separación de etapas: primero validación, luego despliegue, luego rollback si es necesario.
 
 
 
-**Separación de etapas: primero validación, luego despliegue, luego rollback si es necesario.**
+Relación entre repos
+
+Repo central (precario): contiene el pipeline inseguro (terraform-precario.yml).
+
+Repo robusto: contiene este workflow (ci-cd-robusto.yml) con validaciones y resiliencia.
+
+En la defensa, muestras cómo pasaste de un pipeline precario → a uno robusto en otro repo, cumpliendo con el laboratorio.
 
 
 
-**📌 Relación entre repos**
+Cómo cumple con el laboratorio
 
-**Repo central (precario): contiene el pipeline inseguro (terraform-precario.yml).**
+Validaciones: Terraform, TFLint y Checkov antes de desplegar.
 
+Despliegue avanzado: Blue-Green con cambio de tráfico controlado.
 
-
-**Repo robusto: contiene este workflow (ci-cd-robusto.yml) con validaciones y resiliencia.**
-
-
-
-**En la defensa, muestras cómo pasaste de un pipeline precario → a uno robusto en otro repo, cumpliendo con el laboratorio.**
+Health check: valida que la versión Green esté sana antes de redirigir tráfico.
 
 
+Rollback automático: si falla, vuelve a Blue.
 
-**Cómo cumple con el laboratorio**
-
-**Validaciones: Terraform, TFLint y Checkov antes de desplegar.**
-
+![rollback](imagenes/rollback.png)
 
 
-**Despliegue avanzado: Blue-Green con cambio de tráfico controlado.**
-
-
-
-**Health check: valida que la versión Green esté sana antes de redirigir tráfico.**
-
-
-
-**Rollback automático: si falla, vuelve a Blue.**
 
 
 
@@ -52,31 +41,29 @@
 
 
 
+Terraform Robusto CI/CD
+
+![pipeline-robusto](imagenes/pipeline-robusto.png)
+
+
+Este proyecto implementa una arquitectura de despliegue \*\*Blue‑Green\*\* automatizada en AWS EKS utilizando Terraform, GitHub Actions y ECR.
+
+
+El objetivo es garantizar despliegues resilientes, reversibles y validados antes de mover tráfico a la nueva versión.
 
 
 
+Estructura del pipeline
 
-**# Terraform Robusto CI/CD**
+![pipeline-precario](imagenes/pipeline-precario.png)
 
-
-
-**Este proyecto implementa una arquitectura de despliegue \*\*Blue‑Green\*\* automatizada en AWS EKS utilizando Terraform, GitHub Actions y ECR.**  
-
-**El objetivo es garantizar despliegues resilientes, reversibles y validados antes de mover tráfico a la nueva versión.**
-
-
-
-**## 🧩 Estructura del pipeline**
-
-
-
-**1. \*\*leer‑workflow‑precario\*\***  
+1. \*\*leer‑workflow‑precario\
 
 &#x20;  **- Importa y muestra el workflow base del repositorio principal para comparación.**
 
 
 
-**2. \*\*validate‑infra\*\***  
+2. \*\*validate‑infra
 
 &#x20;  **- Ejecuta validaciones de infraestructura:**
 
@@ -88,7 +75,13 @@
 
 
 
-**3. \*\*build‑and‑push‑ecr\*\***  
+3. \*\*build‑and‑push‑ecr
+
+![build-and-push](imagenes/build-and-push.png)
+
+
+
+
 
 &#x20;  **- Construye la imagen Docker desde `./manifiestos/Dockerfile`**
 
@@ -102,7 +95,10 @@
 
 
 
-**4. \*\*deploy‑blue‑green\*\***  
+**4. deploy‑blue‑green
+
+![deploy-blue-and-green](imagenes/deploy-blue-and-green.png)
+
 
 &#x20;  **- Actualiza el contexto de `kubectl` con el cluster EKS.**
 
@@ -116,7 +112,11 @@
 
 
 
-**5. \*\*rollback\*\***  
+**5. rollback
+
+
+![aws-blue-and-green](imagenes/aws-blue-and-green.png)
+
 
 &#x20;  **- Si el despliegue falla, aplica automáticamente los manifiestos Blue (`deployment‑blue.yaml` y `service‑blue.yaml`).**
 
@@ -125,6 +125,7 @@
 
 
 **## 📦 Requisitos**
+
 
 
 
@@ -150,27 +151,28 @@
 
 
 
-**## 🚀 Flujo de despliegue**
+Flujo de despliegue
+
+![actions](imagenes/actions.png)
+
+
+1. Commit en rama `main` → dispara el workflow.
+
+2. Se valida la infraestructura.
+
+3. Se construye y sube la imagen a ECR.
+
+4. Se despliega Green con el SHA actual.
+
+5. Si pasa el health check, se redirige el tráfico.
+
+6. Si falla, se ejecuta rollback automático a Blue.
 
 
 
-**1. Commit en rama `main` → dispara el workflow.**  
+Notas técnicas
 
-**2. Se valida la infraestructura.**  
-
-**3. Se construye y sube la imagen a ECR.**  
-
-**4. Se despliega Green con el SHA actual.**  
-
-**5. Si pasa el health check, se redirige el tráfico.**  
-
-**6. Si falla, se ejecuta rollback automático a Blue.**
-
-
-
-**## 🧠 Notas técnicas**
-
-
+![diagrama](imagenes/diagrama.png)
 
 **- `revisionHistoryLimit` debe estar en el nivel superior de `spec` en los manifiestos.**  
 
@@ -184,6 +186,8 @@
 
 **## ✅ Estado actual**
 
+![pods](imagenes/pods.png)
+![replicas-aws](imagenes/replicas-aws.png)
 
 
 **Última ejecución: \*\*Éxito\*\***  
