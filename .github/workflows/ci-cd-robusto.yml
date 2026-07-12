@@ -89,7 +89,11 @@ jobs:
           docker login --username AWS --password-stdin $ECR_REPO
 
       - name: Build & Push imagen
-        run: docker buildx build --platform linux/amd64 -t $ECR_REPO:${GITHUB_SHA} -f ./manifiestos/Dockerfile ./manifiestos --push
+        run: docker buildx build --platform linux/amd64 \
+             -t $ECR_REPO:${GITHUB_SHA} \
+             -f ./manifiestos/Dockerfile \
+             ./manifiestos \
+             --push
 
 
   deploy-blue-green:
