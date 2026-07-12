@@ -93,7 +93,7 @@ jobs:
              -t $ECR_REPO:${GITHUB_SHA} \
              -t $ECR_REPO:stable \
              -f ./manifiestos/Dockerfile ./manifiestos \
-             --push \
+             --push
 
 
   deploy-blue-green:
