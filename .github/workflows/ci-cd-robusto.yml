@@ -101,16 +101,16 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Login en ECR
-      run: |
-        aws ecr get-login-password --region $AWS_REGION | \
-        docker login --username AWS --password-stdin $ECR_REPO
+      - name: Login en ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin $ECR_REPO
 
-    - name: Build imagen
-      run: docker build -t $ECR_REPO/orders:${GITHUB_SHA} .
+      - name: Build imagen
+        run: docker build -t $ECR_REPO/orders:${GITHUB_SHA} .
 
-    - name: Push imagen
-      run: docker push $ECR_REPO/orders:${GITHUB_SHA}
+      - name: Push imagen
+        run: docker push $ECR_REPO/orders:${GITHUB_SHA}
 
 
       - name: Configurar kubectl
