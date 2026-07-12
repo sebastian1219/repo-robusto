@@ -96,7 +96,7 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | \
           docker login --username AWS --password-stdin $ECR_REPO
 
-      # Corrección aquí: Cambiado '--push ./manifiesto' por '--push ./manifiestos'
+     
       - name: Build & Push imagen
         run: |
           docker buildx build --platform linux/amd64 \
@@ -142,8 +142,10 @@ jobs:
             --docker-username=AWS \
             --docker-password=$TOKEN
 
-      - name: Deploy Green version
-        run: kubectl apply -f manifiestos/deployment-green.yaml
+      - name: Renderizar manifiesto Green con SHA
+        run: |
+          sed "s/\${GITHUB_SHA}/${GITHUB_SHA}/g" manifiestos/deployment-green.yaml > manifiestos/deployment-green.rendered.yaml
+          kubectl apply -f manifiestos/deployment-green.rendered.yaml
 
       - name: Health Check Green
         run: kubectl rollout status deployment/orders-green --timeout=200s
