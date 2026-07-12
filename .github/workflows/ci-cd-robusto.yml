@@ -63,7 +63,7 @@ jobs:
         working-directory: .
 
       - name: Run Checkov
-        run: checkov -d . --quiet --soft-fail false
+        run: checkov -d . --quiet --soft-fail
 
 
   deploy-blue-green:
