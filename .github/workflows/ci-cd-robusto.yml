@@ -88,13 +88,9 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | \
           docker login --username AWS --password-stdin $ECR_REPO
 
-      - name: Build imagen
-        run: docker buildx build --platform linux/amd64 -t $ECR_REPO:${GITHUB_SHA} -f ./manifiestos/Dockerfile ./manifiestos --load
+      - name: Build & Push imagen
+        run: docker buildx build --platform linux/amd64 -t $ECR_REPO:${GITHUB_SHA} -f ./manifiestos/Dockerfile ./manifiestos --push
 
-
-
-      - name: Push imagen
-        run: docker push $ECR_REPO:${GITHUB_SHA}
 
   deploy-blue-green:
     needs: build-and-push-ecr
