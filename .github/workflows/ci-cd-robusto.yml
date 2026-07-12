@@ -89,7 +89,8 @@ jobs:
           docker login --username AWS --password-stdin $ECR_REPO
 
       - name: Build imagen
-        run: docker build -t $ECR_REPO:${GITHUB_SHA} -f ./manifiestos/Dockerfile ./manifiestos
+        run: DOCKER_BUILDKIT=0 docker build -t $ECR_REPO:${GITHUB_SHA} -f ./manifiestos/Dockerfile ./manifiestos
+
 
 
       - name: Push imagen
