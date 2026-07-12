@@ -152,5 +152,5 @@ jobs:
        run: |
          echo "⚠️ Error detectado, revirtiendo a versión estable..."
          kubectl apply -f ./manifiestos/service-blue.yaml --validate=false
-         kubectl rollout undo deployment/orders-green
+         kubectl apply -f ./manifiestos/deployment-blue.yaml --validate=false
 
