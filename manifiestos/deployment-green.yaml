@@ -17,5 +17,4 @@ spec:
       containers:
       - name: orders
         image: <ECR_REPO>/orders:${GITHUB_SHA}
-        ports:
-        - containerPort: 8080
+

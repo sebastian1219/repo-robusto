@@ -83,6 +83,36 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      build-and-push-ecr:
+  needs: validate-infra
+  runs-on: ubuntu-latest
+  env:
+    AWS_REGION: ${{ secrets.AWS_REGION }}
+    ECR_REPO: ${{ secrets.ECR_REPO }}   # nombre del repo en ECR
+  steps:
+    - name: Checkout repo robusto
+      uses: actions/checkout@v4
+
+    - name: Configurar credenciales AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login en ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION | \
+        docker login --username AWS --password-stdin $ECR_REPO
+
+    - name: Build imagen
+      run: docker build -t $ECR_REPO/orders:${GITHUB_SHA} .
+
+    - name: Push imagen
+      run: docker push $ECR_REPO/orders:${GITHUB_SHA}
+
+
       - name: Configurar kubectl
         run: aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
 
