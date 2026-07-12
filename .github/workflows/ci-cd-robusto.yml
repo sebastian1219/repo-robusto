@@ -8,15 +8,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  validate-infra:
+  leer-workflow-precario:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo central (precario)
+      - name: Checkout repo central
         uses: actions/checkout@v4
         with:
           repository: sebastian1219/repo-principal
           path: repo-principal
           fetch-depth: 0
+
+      - name: Mostrar workflow precario
+        run: cat repo-principal/.github/workflows/terraform-precario.yml
+
+  validate-infra:
+    needs: leer-workflow-precario
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo robusto
+        uses: actions/checkout@v4
 
       - name: Instalar Terraform
         run: |
@@ -40,20 +50,20 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: repo-principal
+        working-directory: .
 
       - name: Terraform Validate
         run: terraform validate
-        working-directory: repo-principal
+        working-directory: .
 
       - name: Run TFLint
         run: |
           tflint --init
           tflint --recursive
-        working-directory: repo-principal
+        working-directory: .
 
       - name: Run Checkov
-        run: checkov -d repo-principal --quiet --soft-fail false
+        run: checkov -d . --quiet --soft-fail false
 
   deploy-blue-green:
     needs: validate-infra
@@ -87,4 +97,3 @@ jobs:
           echo "⚠️ Error detectado, revirtiendo a versión estable..."
           kubectl apply -f manifiestos/service-blue.yaml
           kubectl rollout undo deployment/orders-green
-
