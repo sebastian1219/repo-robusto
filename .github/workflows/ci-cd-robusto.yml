@@ -127,12 +127,16 @@ jobs:
         run: kubectl apply -f manifiestos/service-green.yaml
 
   rollback:
-    needs: deploy-blue-green
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Rollback to Blue
-        run: |
-          echo "⚠️ Error detectado, revirtiendo a versión estable..."
-          kubectl apply -f manifiestos/service-blue.yaml
-          kubectl rollout undo deployment/orders-green
+   needs: deploy-blue-green
+   if: failure()
+   runs-on: ubuntu-latest
+   steps:
+     - name: Checkout repo robusto
+       uses: actions/checkout@v4
+
+     - name: Rollback to Blue
+       run: |
+         echo "⚠️ Error detectado, revirtiendo a versión estable..."
+         kubectl apply -f ./manifiestos/service-blue.yaml
+         kubectl rollout undo deployment/orders-green
+
